@@ -21,6 +21,7 @@ def t2s(s):
 def clean(s):
     s = re.sub(r'【[^】]*】(（[^）]*）)?\n?', '', s)
     s = re.sub(r'\n{3,}', '\n\n', s)
+    s = re.sub(r'〔\?([^〕]*)〕', r'\1（?）', s)  # 图中认不准的字
     return s.strip('\n') + '\n'
 
 
