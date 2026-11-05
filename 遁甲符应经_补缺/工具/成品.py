@@ -1,21 +1,38 @@
-"""把阶段三乙的合校稿拼成成品：去页码标记、繁转简（保护「乾」），加文前说明。
+"""把阶段三乙的合校稿拼成成品，出繁体、简体两版。
+
+繁体版：合校稿本来就是繁体，只去页码标记，不做任何转换。
+简体版：opencc t2s 转换，但一对多的字先保护、后处理（全书逐个核过，见进度文件日志）：
+  - 「乾」全书都是卦名、方位，不转成「干」；
+  - 「覆」不转（opencc 会把「天地反覆」「三五反覆」转成「反复」，这里是翻覆义）；
+  - 「著」全书都是穿着、附着、放置义，转成「着」。
 
 用法（在仓库根目录）：
-  python3 遁甲符应经_补缺/工具/成品.py            # 写根目录 遁甲符应经_校订完整版.txt
+  python3 遁甲符应经_补缺/工具/成品.py            # 写根目录两个文件
   python3 遁甲符应经_补缺/工具/成品.py --check    # 只检查，不写
 """
 import argparse, glob, os, re, sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 BASE = os.path.join(ROOT, '遁甲符应经_补缺')
-OUT = os.path.join(ROOT, '遁甲符应经_校订完整版.txt')
-FRONT = os.path.join(BASE, '校勘', '成品_文前说明.txt')
+OUT_S = os.path.join(ROOT, '遁甲符应经_校订完整版_简体.txt')
+OUT_T = os.path.join(ROOT, '遁甲符应经_校订完整版_繁体.txt')
+FRONT_S = os.path.join(BASE, '校勘', '成品_文前说明.txt')
+FRONT_T = os.path.join(BASE, '校勘', '成品_文前说明_繁体.txt')
+
+KEEP = {'乾': '', '覆': ''}   # 简体版里不转的字
+AFTER = {'著': '着'}                      # 简体版转换后再改的字
 
 
 def t2s(s):
     from opencc import OpenCC
-    cc = OpenCC('t2s')
-    return cc.convert(s.replace('乾', '◆')).replace('◆', '乾')
+    for k, v in KEEP.items():
+        s = s.replace(k, v)
+    s = OpenCC('t2s').convert(s)
+    for k, v in KEEP.items():
+        s = s.replace(v, k)
+    for k, v in AFTER.items():
+        s = s.replace(k, v)
+    return s
 
 
 def clean(s):
@@ -32,16 +49,24 @@ def main():
     files = sorted(glob.glob(os.path.join(BASE, '校勘', '阶段三乙_合校_批*.txt')))
     if not files:
         sys.exit('没有合校稿')
-    body = '\n'.join(clean(open(f, encoding='utf-8').read()) for f in files)
-    left = re.findall(r'〔\?[^〕]*〕|【[^】]*】|〔刪〕|〔旁注[^〕]*〕|〔粘簽[^〕]*〕|〔附簽[^〕]*〕|〔眉批[^〕]*〕', body)
-    print('合校稿', len(files), '份；正文', len(re.sub(r'\s', '', body)), '字')
-    print('校注', body.count('〔校：'), '条；残留记号', len(left), left[:20])
+    body_t = '\n'.join(clean(open(f, encoding='utf-8').read()) for f in files)
+    left = re.findall(r'【[^】]*】|〔刪〕|〔旁注[^〕]*〕|〔粘簽[^〕]*〕|〔附簽[^〕]*〕|〔眉批[^〕]*〕', body_t)
+    print('合校稿', len(files), '份；正文', len(re.sub(r'\s', '', body_t)), '字')
+    print('校注', body_t.count('〔校：'), '条；残留记号', len(left), left[:20])
+    body_s = t2s(body_t)
+    # 核对：保护的字数目两版一致，简体版不留「著」
+    for k in KEEP:
+        print(f'「{k}」繁体 {body_t.count(k)}，简体 {body_s.count(k)}')
+        assert body_t.count(k) == body_s.count(k)
+    assert '著' not in body_s
     if a.check:
         return
-    front = open(FRONT, encoding='utf-8').read() if os.path.exists(FRONT) else ''
-    text = t2s(front.rstrip('\n') + '\n\n' + body) if front else t2s(body)
-    open(OUT, 'w', encoding='utf-8').write(text)
-    print('写入', OUT)
+    front_t = open(FRONT_T, encoding='utf-8').read().rstrip('\n')
+    front_s = open(FRONT_S, encoding='utf-8').read().rstrip('\n')
+    open(OUT_T, 'w', encoding='utf-8').write(front_t + '\n\n' + body_t)
+    open(OUT_S, 'w', encoding='utf-8').write(front_s + '\n\n' + body_s)
+    print('写入', OUT_T)
+    print('写入', OUT_S)
 
 
 if __name__ == '__main__':
