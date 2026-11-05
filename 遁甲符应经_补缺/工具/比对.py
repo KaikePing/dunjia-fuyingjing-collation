@@ -10,7 +10,7 @@ import argparse, difflib, re
 PUN = set('，。：；、！？“”「」《》（）()·．.　 \n?—〔〕【】0123456789页頁')
 
 def clean(s):
-    s = re.sub(r'【[页頁]\w+】|（空白）', '', s)
+    s = re.sub(r'【[页頁]\w+】|【明[^】]*】|（空白）', '', s)
     s = re.sub(r'〔[圖图][：:][^〕]*〕', '', s)
     return [c for c in s if c not in PUN]
 
